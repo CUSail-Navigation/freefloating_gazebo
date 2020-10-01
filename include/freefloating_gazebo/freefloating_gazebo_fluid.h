@@ -38,16 +38,16 @@ namespace gazebo
 		};
         std::string model_name;
         physics::LinkPtr link;
-        math::Vector3 buoyant_force;
-        math::Vector3 buoyancy_center;
-        math::Vector3 linear_damping;
-        math::Vector3 angular_damping;
+        ignition::math::Vector3d buoyant_force;
+        ignition::math::Vector3d buoyancy_center;
+        ignition::math::Vector3d linear_damping;
+        ignition::math::Vector3d angular_damping;
 
-	math::Vector3 waterSurface;
+	ignition::math::Vector3d waterSurface;
 	ros::Subscriber water_subscriber;
 	ros::Subscriber waterCurrent_subscriber;
 
-	math::Vector3 water_velocity_;
+	ignition::math::Vector3d water_velocity_;
 	bool usingLocalWaterVelocity;
 	bool usingNoneWaterVelocity;
 	bool usingLocalWindVelocity;
@@ -55,7 +55,7 @@ namespace gazebo
     ros::Subscriber waterVelocity_subscriber;
     ros::ServiceClient water_velocity_serviceClient_;
     ros::ServiceClient wind_velocity_serviceClient_;
-	math::Vector3 wind_velocity_;
+	ignition::math::Vector3d wind_velocity_;
 	double frontal_area;
 	double lateral_area;
 	double lateral_length;
@@ -93,13 +93,13 @@ namespace gazebo
 				{
 
 					water_current::GetSpeed srv;
-					srv.request.x = waterSurface.x;
-					srv.request.y = waterSurface.y;
+					srv.request.x = waterSurface.X();
+					srv.request.y = waterSurface.Y();
 					//std::cerr<<"\n calling services 1! water: "<<usingLocalFluidVelocity;
 					if (usingLocalWaterVelocity && water_velocity_serviceClient_.call(srv))
 					{
-						water_velocity_.x = srv.response.x;
-						water_velocity_.y = srv.response.y;
+						water_velocity_.X( srv.response.x );
+						water_velocity_.Y( srv.response.y );
 						//std::cerr << "\n ============== fluidWater "<<model_name<<"="<<link->GetName()<<" ("<<water_velocity_.x<<", "<<water_velocity_.y<<")";
 					}
 					else if (usingLocalWaterVelocity)
@@ -112,14 +112,14 @@ namespace gazebo
 					}
 					//std::cerr<<"\n calling services 2! wind: "<<usingLocalWindVelocity;
 					wind_current::GetSpeed srv_wind;
-					srv_wind.request.x = link->GetWorldPose().pos.x;
-					srv_wind.request.y = link->GetWorldPose().pos.y;
-					srv_wind.request.z = link->GetWorldPose().pos.z;
+					srv_wind.request.x = link->WorldPose().Pos().X();
+					srv_wind.request.y = link->WorldPose().Pos().Y();
+					srv_wind.request.z = link->WorldPose().Pos().Z();
 					if (usingLocalWindVelocity && wind_velocity_serviceClient_.call(srv_wind))
 					{
-						wind_velocity_.x = srv_wind.response.x;
-						wind_velocity_.y = srv_wind.response.y;
-						wind_velocity_.z = srv_wind.response.z;
+						wind_velocity_.X( srv_wind.response.x);
+						wind_velocity_.Y( srv_wind.response.y);
+						wind_velocity_.Z( srv_wind.response.z);
 						//std::cerr << "\n ============== wind "<<model_name<<"="<<link->GetName()<<"pos: ("<<link->GetWorldPose().pos.x<<", "<<link->GetWorldPose().pos.y<<", "<<link->GetWorldPose().pos.z<<") wind: ("<<wind_velocity_.x<<", "<<wind_velocity_.y<<", "<<wind_velocity_.z<<")";
 						//std::cerr << "\n ============== wind "<<model_name<<"="<<link->GetName()<<" ("<<wind.x<<", "<<wind.y<<")";
 					}
@@ -138,9 +138,9 @@ namespace gazebo
 	void processSurfaceData(const geometry_msgs::Point::ConstPtr& pt)
 	{
 		//std::cerr<<"\n --------------------------------------- z: "<<pt->z;
-		waterSurface.x = pt->x;
-		waterSurface.y = pt->y;
-		waterSurface.z = pt->z;
+		waterSurface.X( pt->x);
+		waterSurface.Y( pt->y);
+		waterSurface.Z( pt->z);
 	}
 
 	void createSubscriberWaterSurface(ros::NodeHandle *nh, std::string topic)
@@ -150,9 +150,9 @@ namespace gazebo
 
 	void processWaterCurrentData(const geometry_msgs::Vector3::ConstPtr& pt)
 		{
-			water_velocity_.x = pt->x;
-			water_velocity_.y = pt->y;
-			water_velocity_.z = pt->z;
+			water_velocity_.X( pt->x);
+			water_velocity_.Y( pt->y);
+			water_velocity_.Z( pt->z);
 		}
 
 	void createSubscriberWaterCurrent(ros::NodeHandle *nh, std::string topic)
@@ -194,7 +194,7 @@ private:
 
 
     // parse a Vector3 string
-    void ReadVector3(const std::string &_string, math::Vector3 &_vector);
+    void ReadVector3(const std::string &_string, ignition::math::Vector3d &_vector);
     // parse a new model
     void ParseNewModel(const physics::ModelPtr &_model);
     // removes a deleted model
@@ -209,7 +209,7 @@ private:
 private:
     // plugin options
     bool has_surface_;
-    math::Vector4 surface_plane_;
+    ignition::math::Vector4d surface_plane_;
     std::string description_;
 
     // general data
@@ -225,7 +225,7 @@ private:
 
     // subscriber to fluid velocity (defined in the world frame)
     ros::Subscriber fluid_velocity_subscriber_;
-    math::Vector3 fluid_velocity_;
+    ignition::math::Vector3d fluid_velocity_;
     tf::TransformBroadcaster broadcaster;
     double param_update_rate;
     ros::Time prevUpdateTime;

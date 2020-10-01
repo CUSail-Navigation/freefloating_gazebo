@@ -22,16 +22,14 @@ class LinkSurface
 {
 public:
 	std::string linkName;
-	math::Vector3 waterSurface;
+	ignition::math::Vector3d waterSurface;
 	ros::Subscriber water_subscriber;
 
 	void processSurfaceData(const geometry_msgs::Point::ConstPtr& pt)
 	{
-		waterSurface.x = pt->x;
-		waterSurface.y = pt->y;
-		waterSurface.z = pt->z;
-
-		//std::cerr<<"\n "<<linkName<<" m estah com z: "<<waterSurface.z;
+		waterSurface.X( pt->x);
+		waterSurface.Y( pt->y);
+		waterSurface.Z( pt->z);
 	}
 
 	void createSubscriber(ros::NodeHandle nh, std::string topic)
@@ -48,7 +46,7 @@ public:
     FreeFloatingControlPlugin() {}
     ~FreeFloatingControlPlugin()
     {
-        event::Events::DisconnectWorldUpdateBegin(this->update_event_);
+        
         rosnode_.shutdown();
         //    delete rosnode_;
     }
@@ -58,7 +56,7 @@ public:
 
 private:
     // parse a Vector3 string
-    void ReadVector3(const std::string &_string, math::Vector3 &_vector);
+    void ReadVector3(const std::string &_string, ignition::math::Vector3d &_vector);
     // parse received joint command (joint states)
     void JointCommandCallBack(const sensor_msgs::JointStateConstPtr &_msg)
     {

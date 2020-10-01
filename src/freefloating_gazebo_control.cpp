@@ -8,7 +8,6 @@
 #include <gazebo/physics/Link.hh>
 #include <gazebo/physics/World.hh>
 #include <gazebo/physics/PhysicsEngine.hh>
-#include <gazebo/math/Pose.hh>
 
 #include <freefloating_gazebo/freefloating_gazebo_control.h>
 
@@ -20,7 +19,7 @@ namespace gazebo
 {
 
 	void
-	FreeFloatingControlPlugin::ReadVector3 (const std::string &_string, math::Vector3 &_vector)
+	FreeFloatingControlPlugin::ReadVector3 (const std::string &_string, ignition::math::Vector3d &_vector)
 	{
 		std::stringstream ss (_string);
 		double xyz[3];
@@ -306,8 +305,8 @@ namespace gazebo
 
 					// save name and joint limits
 					joint_names.push_back (name);
-					joint_min.push_back (joint->GetLowerLimit (0).Radian ());
-					joint_max.push_back (joint->GetUpperLimit (0).Radian ());
+					joint_min.push_back (joint->LowerLimit (0)); // in radians
+					joint_max.push_back (joint->UpperLimit (0)); // in radians
 					vel_max.push_back (joint->GetVelocityLimit (0));
 				}
 			}
@@ -378,7 +377,7 @@ namespace gazebo
 				for (i = 0; i < thruster_fixed_idx_.size (); ++i)
 				{
 					//std::cerr<<"\n link z: "<< link_water_surface[i]->waterSurface.z ;
-					if (body_->GetWorldCoGPose ().pos.z < link_water_surface[i]->waterSurface.z)
+					if (body_->WorldCoGPose ().Pos().Z() < link_water_surface[i]->waterSurface.Z())
 					{
 						norm_ratio = std::max (norm_ratio, std::abs (thruster_command_ (i)) / thruster_max_command_[i]);
 					}
@@ -401,34 +400,34 @@ namespace gazebo
 					//std::cerr<<"\n -----> apply force2: "<<fixed(0)<<", "<<fixed(1)<<", "<<fixed(2)<<", ";
 					// apply this wrench to body
 					body_->AddForceAtWorldPosition (
-					        body_->GetWorldPose ().rot.RotateVector (math::Vector3 (fixed (0), fixed (1), fixed (2))),
-					        body_->GetWorldCoGPose ().pos);
-					body_->AddRelativeTorque (math::Vector3 (fixed (3), fixed (4), fixed (5)));
+					        body_->WorldPose ().Rot().RotateVector (ignition::math::Vector3d (fixed (0), fixed (1), fixed (2))),
+					        body_->WorldCoGPose ().Pos());
+					body_->AddRelativeTorque (ignition::math::Vector3d (fixed (3), fixed (4), fixed (5)));
 				}
 
 				// apply command for steering thrusters
 				if (thruster_steer_idx_.size ())
 				{
 					for (unsigned int i = 0; i < thruster_steer_idx_.size (); ++i)
-						if (thruster_links_[i]->GetWorldCoGPose ().pos.z < link_water_surface[i]->waterSurface.z)
+						if (thruster_links_[i]->WorldCoGPose ().Pos().Z() < link_water_surface[i]->waterSurface.Z())
 						{
 							//std::cerr<<"\n relativeForce["<<i<<"]: "<<thruster_links_[i]->GetRelativeForce();
 							//std::cerr<<"\n ["<<i<<"] UNDER WATER "<<thruster_command_(thruster_steer_idx_[i])<<" . max: "<<thruster_max_command_[i];
 							if (thruster_command_ (thruster_steer_idx_[i]) < -thruster_max_command_[i])
 							{
 								//std::cerr<<" --- 1: "<<thruster_max_command_[i];
-								thruster_links_[i]->AddRelativeForce (math::Vector3 (0, 0, thruster_max_command_[i]));
+								thruster_links_[i]->AddRelativeForce (ignition::math::Vector3d (0, 0, thruster_max_command_[i]));
 							}
 							else if (thruster_command_ (thruster_steer_idx_[i]) > thruster_max_command_[i])
 							{
 								//std::cerr<<" --- 2: "<<-thruster_max_command_[i];
-								thruster_links_[i]->AddRelativeForce (math::Vector3 (0, 0, -thruster_max_command_[i]));
+								thruster_links_[i]->AddRelativeForce (ignition::math::Vector3d (0, 0, -thruster_max_command_[i]));
 							}
 							else
 							{
 								//std::cerr<<" --- 3: "<<-thruster_command_ (thruster_steer_idx_[i]);
 								thruster_links_[i]->AddRelativeForce (
-								        math::Vector3 (0, 0, -thruster_command_ (thruster_steer_idx_[i])));
+								        ignition::math::Vector3d (0, 0, -thruster_command_ (thruster_steer_idx_[i])));
 							}
 							//std::cerr<<"\n relativeForce: "<<thruster_links_[i]->GetRelativeForce();
 						}
@@ -441,17 +440,17 @@ namespace gazebo
 							if (thruster_command_ (thruster_steer_idx_[i]) < -thruster_overWater_max_command_[i])
 							{
 								thruster_links_[i]->AddRelativeForce (
-								        math::Vector3 (0, 0, thruster_overWater_max_command_[i]));
+								        ignition::math::Vector3d (0, 0, thruster_overWater_max_command_[i]));
 							}
 							else if (thruster_command_ (thruster_steer_idx_[i]) > thruster_overWater_max_command_[i])
 							{
 								thruster_links_[i]->AddRelativeForce (
-								        math::Vector3 (0, 0, -thruster_overWater_max_command_[i]));
+								        ignition::math::Vector3d (0, 0, -thruster_overWater_max_command_[i]));
 							}
 							else
 							{
 								thruster_links_[i]->AddRelativeForce (
-								        math::Vector3 (0, 0, -thruster_command_ (thruster_steer_idx_[i])));
+								        ignition::math::Vector3d (0, 0, -thruster_command_ (thruster_steer_idx_[i])));
 								//std::cerr<<"\n applied: "<<thruster_command_ (thruster_steer_idx_[i]);
 							}
 						}
@@ -464,7 +463,7 @@ namespace gazebo
 				// compute and publish thruster use in %
 				for (i = 0; i < thruster_fixed_idx_.size (); ++i)
 				{
-					if (body_->GetWorldCoGPose ().pos.z < link_water_surface[i]->waterSurface.z)
+					if (body_->WorldCoGPose ().Pos().Z() < link_water_surface[i]->waterSurface.Z())
 						thruster_use_.position[i] = 100 * std::abs (thruster_command_ (i) / thruster_max_command_[i]);
 					else
 						thruster_use_.position[i] = 100
@@ -487,7 +486,7 @@ namespace gazebo
 
 			for (unsigned int i = 0; i < joints_.size (); ++i)
 			{
-				joint_states_.position[i] = joints_[i]->GetAngle (0).Radian ();
+				joint_states_.position[i] = joints_[i]->Position (0);
 				joint_states_.velocity[i] = joints_[i]->GetVelocity (0);
 			}
 

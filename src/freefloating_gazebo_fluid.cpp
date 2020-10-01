@@ -11,7 +11,6 @@
 #include <gazebo/physics/PhysicsEngine.hh>
 #include <tinyxml.h>
 #include <urdf_parser/urdf_parser.h>
-#include <gazebo/math/Pose.hh>
 
 #include <freefloating_gazebo/freefloating_gazebo_fluid.h>
 
@@ -23,7 +22,7 @@ namespace gazebo
 {
 
 	void
-	FreeFloatingFluidPlugin::ReadVector3 (const std::string &_string, math::Vector3 &_vector)
+	FreeFloatingFluidPlugin::ReadVector3 (const std::string &_string, ignition::math::Vector3d &_vector)
 	{
 		std::stringstream ss (_string);
 		double xyz[3];
@@ -58,14 +57,14 @@ namespace gazebo
 		{
 			has_surface_ = true;
 			// get one surface point
-			math::Vector3 surface_point;
+			ignition::math::Vector3d surface_point;
 			ReadVector3 (_sdf->Get < std::string > ("surface"), surface_point);
 			// get gravity
-			const math::Vector3 WORLD_GRAVITY = world_->GetPhysicsEngine ()->GetGravity ().Normalize ();
+			const ignition::math::Vector3d WORLD_GRAVITY = world_->Gravity ().Normalize ();
 			// water surface is orthogonal to gravity
-			surface_plane_.Set (WORLD_GRAVITY.x, WORLD_GRAVITY.y, WORLD_GRAVITY.z, WORLD_GRAVITY.Dot (surface_point));
+			surface_plane_.Set (WORLD_GRAVITY.X(), WORLD_GRAVITY.Y(), WORLD_GRAVITY.Z(), WORLD_GRAVITY.Dot (surface_point));
 			// push on parameter server
-			rosnode_->setParam ("surface", surface_point.z);
+			rosnode_->setParam ("surface", surface_point.Z());
 		}
 
 		if (_sdf->HasElement ("fluidTopic"))
@@ -113,16 +112,16 @@ namespace gazebo
 		unsigned int i;
 		std::vector<model_st*>::iterator model_it;
 		bool found;
-		for (i = 0; i < world_->GetModelCount (); ++i)
+		for (i = 0; i < world_->ModelCount (); ++i)
 		{
 			found = false;
 			for (model_it = parsed_models_.begin (); model_it != parsed_models_.end (); ++model_it)
 			{
-				if (world_->GetModel (i)->GetName () == (*model_it)->name)
+				if (world_->ModelByIndex (i)->GetName () == (*model_it)->name)
 					found = true;
 			}
-			if (!found && !(world_->GetModel (i)->IsStatic ())) // model not in listand not static, parse it for potential buoyancy flags
-				ParseNewModel (world_->GetModel (i));
+			if (!found && !(world_->ModelByIndex (i)->IsStatic ())) // model not in listand not static, parse it for potential buoyancy flags
+				ParseNewModel (world_->ModelByIndex (i));
 		}
 
 		// look for deleted world models
@@ -130,9 +129,9 @@ namespace gazebo
 		while (model_it != parsed_models_.end ())
 		{
 			found = false;
-			for (i = 0; i < world_->GetModelCount (); ++i)
+			for (i = 0; i < world_->ModelCount (); ++i)
 			{
-				if (world_->GetModel (i)->GetName () == (*model_it)->name)
+				if (world_->ModelByIndex (i)->GetName () == (*model_it)->name)
 					found = true;
 			}
 			if (!found) // model name not in world anymore, remove the corresponding links
@@ -142,16 +141,16 @@ namespace gazebo
 		}
 
 		// here buoy_links is up-to-date with the links that are subject to buoyancy, let's apply it
-		math::Vector3 actual_force, cob_position, velocity_difference, torque;
+		ignition::math::Vector3d actual_force, cob_position, velocity_difference, torque;
 		double signed_distance_to_surface;
 
-		const math::Vector3 WORLD_GRAVITY = world_->GetPhysicsEngine ()->GetGravity ().Normalize ();
+		const ignition::math::Vector3d WORLD_GRAVITY = world_->Gravity ().Normalize ();
 		for (std::vector<link_st*>::iterator link_it = buoyant_links_.begin (); link_it != buoyant_links_.end (); ++link_it)
 		{
 			//std::cerr<<"\n world Force["<<(*link_it)->link->GetName()<<"]: "<<(*link_it)->link->GetWorldForce();
 			// get world position of the center of buoyancy
-			cob_position = (*link_it)->link->GetWorldPose ().pos
-			    + (*link_it)->link->GetWorldPose ().rot.RotateVector ((*link_it)->buoyancy_center);
+			cob_position = (*link_it)->link->WorldPose ().Pos()
+			    + (*link_it)->link->WorldPose ().Rot().RotateVector ((*link_it)->buoyancy_center);
 			// start from the theoretical buoyancy force
 			actual_force = (*link_it)->buoyant_force;
 
@@ -161,12 +160,12 @@ namespace gazebo
 				//surface_plane_.Set(0, 0, 1, 0);
 
 				// water surface is orthogonal to gravity
-				surface_plane_.Set (WORLD_GRAVITY.x, WORLD_GRAVITY.y, WORLD_GRAVITY.z,
+				surface_plane_.Set (WORLD_GRAVITY.X(), WORLD_GRAVITY.Y(), WORLD_GRAVITY.Z(),
 				                    WORLD_GRAVITY.Dot ((*link_it)->waterSurface));
 
 				// adjust force depending on distance to surface (very simple model)
-				signed_distance_to_surface = surface_plane_.w - surface_plane_.x * cob_position.x
-				    - surface_plane_.y * cob_position.y - surface_plane_.z * cob_position.z;
+				signed_distance_to_surface = surface_plane_.W() - surface_plane_.X() * cob_position.X()
+				    - surface_plane_.Y() * cob_position.Y() - surface_plane_.Z() * cob_position.Z();
 				//std::cerr<<"\n signed_distance_to_surface: "<<signed_distance_to_surface<<" z: "<<(*link_it)->waterSurface.z;
 				//if ((*link_it)->model_name.compare("barcoDiferencial")==0)
 				//std::cerr<<"\n "<<(*link_it)->model_name<<"  : "<<signed_distance_to_surface<<" b.z: "<<cob_position.z<<" w.z: "<<surface_plane_.w;
@@ -191,13 +190,13 @@ namespace gazebo
 
 			if ((*link_it)->usingNoneWindVelocity != true)
 			{
-				double mult = (cob_position.z + (*link_it)->limit - surface_plane_.w)/(2.0 * (*link_it)->limit);
+				double mult = (cob_position.Z() + (*link_it)->limit - surface_plane_.W())/(2.0 * (*link_it)->limit);
 				if (mult > 1.0)
 					mult = 1.0;
 				if (mult < 0.0)
 					mult = 0.0;
 
-				math::Vector3 Vw  = (*link_it)->wind_velocity_;
+				ignition::math::Vector3d Vw  = (*link_it)->wind_velocity_;
 				double Afw = (*link_it)->frontal_area*mult; // frontal area
 				double Alw = (*link_it)->lateral_area*mult; // lateral area
 				double Hlw = signed_distance_to_surface; // height of centroid lateral area
@@ -205,9 +204,9 @@ namespace gazebo
 				double Loa = (*link_it)->lateral_length; // length overall
 				//double urw = u - Vw * cos(Bw - W);
 				//double urw = (*link_it)->link->GetWorldLinearVel ().x - Vw.x;
-				double urw = (*link_it)->link->GetWorldPose ().rot.RotateVectorReverse ((*link_it)->link->GetWorldLinearVel () - Vw).x;
+				double urw = (*link_it)->link->WorldPose ().Rot().RotateVectorReverse ((*link_it)->link->WorldLinearVel () - Vw).X();
 				//double vrw = v - Vw * sin(Bw - W);
-				double vrw = (*link_it)->link->GetWorldPose ().rot.RotateVectorReverse ((*link_it)->link->GetWorldLinearVel () - Vw).y;
+				double vrw = (*link_it)->link->WorldPose ().Rot().RotateVectorReverse ((*link_it)->link->WorldLinearVel () - Vw).Y();
 				//double vrw = (*link_it)->link->GetWorldLinearVel ().y - Vw.y;
 				double Pa = 1.184;
 				double Sl = 0.05;
@@ -261,9 +260,9 @@ namespace gazebo
 				//std::cerr<<"\n "<<(*link_it)->model_name<<" mult: "<<mult<<" signed_distance_to_surface: "<<signed_distance_to_surface<< " w: "<< surface_plane_.z<<" z: "<< cob_position.z;
 				//std::cerr<<"\n "<<(*link_it)->model_name<<"["<<(*link_it)->link->GetName()<<"] F: ("<<Xw<<", "<<Yw<<", "<<Zw<<") Vw ("<<Vw.x<<", "<<Vw.y<<", "<<Vw.z<<") M ("<<Kw<<", "<<Mw<<", "<<Nw<<") CN: "<<Cn<<" CY: "<<Cy<<" Yrw: "<<Yrw<<" speed ("<<urw<<", "<<vrw<<") linSpeed: "<<(*link_it)->link->GetWorldLinearVel ().x<<", "<<(*link_it)->link->GetWorldLinearVel ().y<<") mult: "<<mult;
 				//std::cerr<<"\n "<<(*link_it)->model_name<<"["<<(*link_it)->link->GetName()<<"] lateral:" <<Alw<<" frontal: "<<Afw;
-				(*link_it)->link->AddRelativeTorque (math::Vector3(Kw, Mw, Nw) );
-				//(*link_it)->link->AddForceAtWorldPosition (math::Vector3(Xw, Yw, Zw), cob_position);
-				(*link_it)->link->AddRelativeForce (math::Vector3(Xw, Yw, Zw));
+				(*link_it)->link->AddRelativeTorque (ignition::math::Vector3d(Kw, Mw, Nw) );
+				//(*link_it)->link->AddForceAtWorldPosition (ignition::math::Vector3d(Xw, Yw, Zw), cob_position);
+				(*link_it)->link->AddRelativeForce (ignition::math::Vector3d(Xw, Yw, Zw));
 			}
 
 			// get velocity damping
@@ -271,29 +270,29 @@ namespace gazebo
 			if ((*link_it)->usingLocalWaterVelocity)
 			{
 				//std::cerr<<"\n local: ";
-				velocity_difference = (*link_it)->link->GetWorldPose ().rot.RotateVectorReverse (
-				    (*link_it)->link->GetWorldLinearVel () - (*link_it)->water_velocity_);
+				velocity_difference = (*link_it)->link->WorldPose ().Rot().RotateVectorReverse (
+				    (*link_it)->link->WorldLinearVel () - (*link_it)->water_velocity_);
 			}
 			else if ((*link_it)->usingNoneWaterVelocity)
 			{
-				velocity_difference = (*link_it)->link->GetWorldPose ().rot.RotateVectorReverse (
-								    (*link_it)->link->GetWorldLinearVel () );
+				velocity_difference = (*link_it)->link->WorldPose ().Rot().RotateVectorReverse (
+								    (*link_it)->link->WorldLinearVel () );
 				//std::cerr<<"\n none worldLinearVel: "<<(*link_it)->link->GetWorldLinearVel ();
 			}
 			else
 			{
 				//std::cerr<<"\n global fluid_velocity_("<<(*link_it)->link->GetName()<<"): "<<fluid_velocity_;
-				velocity_difference = (*link_it)->link->GetWorldPose ().rot.RotateVectorReverse (
-				    (*link_it)->link->GetWorldLinearVel () - fluid_velocity_);
+				velocity_difference = (*link_it)->link->WorldPose ().Rot().RotateVectorReverse (
+				    (*link_it)->link->WorldLinearVel () - fluid_velocity_);
 			}
 
 			// to square
-			velocity_difference.x *= fabs (velocity_difference.x);
-			velocity_difference.y *= fabs (velocity_difference.y);
-			velocity_difference.z *= fabs (velocity_difference.z);
+			velocity_difference.X( velocity_difference.X() * fabs (velocity_difference.X()) );
+			velocity_difference.Y( velocity_difference.Y() * fabs (velocity_difference.Y()) );
+			velocity_difference.Z( velocity_difference.Z() * fabs (velocity_difference.Z()) );
 			// apply damping coefficients
 			//std::cerr<<"\n ###actual_force: "<<actual_force;
-			actual_force -= (*link_it)->link->GetWorldPose ().rot.RotateVector (
+			actual_force -= (*link_it)->link->WorldPose ().Rot().RotateVector (
 			    (*link_it)->linear_damping * velocity_difference);
 
 			//link_it->link->AddForceAtRelativePosition(link_it->link->GetWorldPose().rot.RotateVectorReverse(link_it->buoyant_force),
@@ -307,10 +306,10 @@ namespace gazebo
 			(*link_it)->link->AddForceAtWorldPosition (actual_force, cob_position);
 
 			// same for angular damping
-			velocity_difference = (*link_it)->link->GetRelativeAngularVel ();
-			velocity_difference.x *= fabs (velocity_difference.x);
-			velocity_difference.y *= fabs (velocity_difference.y);
-			velocity_difference.z *= fabs (velocity_difference.z);
+			velocity_difference = (*link_it)->link->RelativeAngularVel ();
+			velocity_difference.X( velocity_difference.X() * fabs (velocity_difference.X()) );
+			velocity_difference.Y( velocity_difference.Y() * fabs (velocity_difference.Y()) );
+			velocity_difference.Z( velocity_difference.Z() * fabs (velocity_difference.Z()) );
 			(*link_it)->link->AddRelativeTorque (-(*link_it)->angular_damping * velocity_difference);
 			//std::cerr<<"\n angular damping["<<(*link_it)->link->GetName()<<"]: "<<(*link_it)->angular_damping<<" velocity_difference: "<<velocity_difference;
 			//std::cerr<<"\n torque: "<<(-(*link_it)->angular_damping * velocity_difference);
@@ -324,32 +323,32 @@ namespace gazebo
 				nav_msgs::Odometry state;
 				state.header.frame_id = "world";
 				state.header.stamp = ros::Time::now ();
-				math::Vector3 vec;
-				math::Pose pose;
+				ignition::math::Vector3d vec;
+				ignition::math::Pose3d pose;
 				for (model_it = parsed_models_.begin (); model_it != parsed_models_.end (); ++model_it)
 				{
 					// which link
 					state.child_frame_id = "base_link";
 					// write absolute pose
-					pose = (*model_it)->model_ptr->GetWorldPose ();
-					state.pose.pose.position.x = pose.pos.x;
-					state.pose.pose.position.y = pose.pos.y;
-					state.pose.pose.position.z = pose.pos.z;
-					state.pose.pose.orientation.x = pose.rot.x;
-					state.pose.pose.orientation.y = pose.rot.y;
-					state.pose.pose.orientation.z = pose.rot.z;
-					state.pose.pose.orientation.w = pose.rot.w;
+					pose = (*model_it)->model_ptr->WorldPose ();
+					state.pose.pose.position.x = pose.Pos().X();
+					state.pose.pose.position.y = pose.Pos().Y();
+					state.pose.pose.position.z = pose.Pos().Z();
+					state.pose.pose.orientation.x = pose.Rot().X();
+					state.pose.pose.orientation.y = pose.Rot().Y();
+					state.pose.pose.orientation.z = pose.Rot().Z();
+					state.pose.pose.orientation.w = pose.Rot().W();
 
 					// write relative linear velocity
-					vec = (*model_it)->model_ptr->GetRelativeLinearVel ();
-					state.twist.twist.linear.x = vec.x;
-					state.twist.twist.linear.y = vec.y;
-					state.twist.twist.linear.z = vec.z;
+					vec = (*model_it)->model_ptr->RelativeLinearVel ();
+					state.twist.twist.linear.x = vec.X();
+					state.twist.twist.linear.y = vec.Y();
+					state.twist.twist.linear.z = vec.Z();
 					// write relative angular velocity
-					vec = (*model_it)->model_ptr->GetRelativeAngularVel ();
-					state.twist.twist.angular.x = vec.x;
-					state.twist.twist.angular.y = vec.y;
-					state.twist.twist.angular.z = vec.z;
+					vec = (*model_it)->model_ptr->RelativeAngularVel ();
+					state.twist.twist.angular.x = vec.X();
+					state.twist.twist.angular.y = vec.Y();
+					state.twist.twist.angular.z = vec.Z();
 
 					// publish
 					(*model_it)->state_publisher.publish (state);
@@ -402,7 +401,7 @@ namespace gazebo
 		TiXmlDocument urdf_doc;
 		urdf_doc.Parse (urdf_content.c_str (), 0);
 
-		const math::Vector3 WORLD_GRAVITY = world_->GetPhysicsEngine ()->GetGravity ();
+		const ignition::math::Vector3d WORLD_GRAVITY = world_->Gravity ();
 
 		TiXmlElement* urdf_root = urdf_doc.FirstChildElement ();
 		TiXmlNode* urdf_node, *link_node, *buoy_node;
@@ -450,9 +449,9 @@ namespace gazebo
 							new_buoy_link->createSubscriberWaterSurface (rosnode_, topic);
 							// get data from urdf
 							// default values
-							new_buoy_link->buoyancy_center = sdf_link->GetInertial ()->GetCoG ();
-							new_buoy_link->linear_damping = new_buoy_link->angular_damping = 5 * math::Vector3::One
-							    * sdf_link->GetInertial ()->GetMass ();
+							new_buoy_link->buoyancy_center = sdf_link->GetInertial ()->CoG ();
+							new_buoy_link->linear_damping = new_buoy_link->angular_damping = 5 * ignition::math::Vector3d::One
+							    * sdf_link->GetInertial ()->Mass ();
 
 							compensation = 0;
 							for (buoy_node = link_node->FirstChild (); buoy_node != 0; buoy_node = buoy_node->NextSibling ())
@@ -557,7 +556,7 @@ namespace gazebo
 							}
 							if (new_buoy_link->usingLocalWaterVelocity || new_buoy_link->usingLocalWindVelocity)
 								new_buoy_link->Start ();
-							new_buoy_link->buoyant_force = -compensation * sdf_link->GetInertial ()->GetMass () * WORLD_GRAVITY;
+							new_buoy_link->buoyant_force = -compensation * sdf_link->GetInertial ()->Mass () * WORLD_GRAVITY;
 
 							// store this link
 							buoyant_links_.push_back (new_buoy_link);
